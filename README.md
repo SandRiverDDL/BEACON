@@ -7,15 +7,18 @@
 <h3 align="center">Milestone-Guided Policy Learning for Long-Horizon Language Agents</h3>
 
 <p align="center">
+  <a href="https://arxiv.org/abs/2605.06078"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2605.06078-b31b1b.svg"></a>
   <a href="https://github.com/ZJU-REAL/BEACON"><img alt="Code" src="https://img.shields.io/badge/code-GitHub-181717.svg"></a>
+  <a href="https://zju-real.github.io/BEACON/"><img alt="Project Page" src="https://img.shields.io/badge/project-page-0d6e6e.svg"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%20%7C%203.12-blue.svg">
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-green.svg">
 </p>
 
 <p align="center">
-  Zixuan Wang, Yuchen Yan, Hongxing Li, Teng Pan, Dingming Li, Ruiqing Zhang,<br>
-  Weiming Lu, Jun Xiao, Yueting Zhuang, Yongliang Shen<sup>†</sup><br>
-  <em>Zhejiang University &nbsp;·&nbsp; Baidu Inc.</em>
+  Zixuan Wang<sup>1,2</sup>, Yuchen Yan<sup>1</sup>, Hongxing Li<sup>1</sup>, Teng Pan<sup>1,2</sup>, Dingming Li<sup>1</sup>, Ruiqing Zhang<sup>2</sup>,<br>
+  Weiming Lu<sup>1</sup>, Jun Xiao<sup>1</sup>, Yueting Zhuang<sup>1</sup>, Yongliang Shen<sup>1,†</sup><br>
+  <em><sup>1</sup>Zhejiang University &nbsp;·&nbsp; <sup>2</sup>Baidu Inc.</em><br>
+  <sub><sup>†</sup>Corresponding author</sub>
 </p>
 
 <p align="center">
@@ -151,4 +154,14 @@ This codebase builds on [verl-agent](https://github.com/langfengQ/verl-agent), w
 
 ## Citation
 
-Coming soon.
+```bibtex
+@misc{wang2026milestoneguidedpolicylearninglonghorizon,
+  title         = {Milestone-Guided Policy Learning for Long-Horizon Language Agents},
+  author        = {Zixuan Wang and Yuchen Yan and Hongxing Li and Teng Pan and Dingming Li and Ruiqing Zhang and Weiming Lu and Jun Xiao and Yueting Zhuang and Yongliang Shen},
+  year          = {2026},
+  eprint        = {2605.06078},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  url           = {https://arxiv.org/abs/2605.06078},
+}
+```
