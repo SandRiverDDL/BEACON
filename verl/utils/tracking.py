@@ -16,10 +16,29 @@ A unified tracking interface that supports logging data to different backend
 """
 
 import dataclasses
+import os as _os
 from enum import Enum
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Union
+
+
+def _parse_metric_patterns(value: str) -> List[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _metric_matches(pattern: str, key: str) -> bool:
+    if pattern == "*":
+        return True
+    if pattern.endswith("*"):
+        return key.startswith(pattern[:-1])
+    return key == pattern
+
+
+def _filter_metrics(data: Dict[str, Any], patterns: List[str]) -> Dict[str, Any]:
+    if not patterns:
+        return data
+    return {key: value for key, value in data.items() if any(_metric_matches(pattern, key) for pattern in patterns)}
 
 
 class Tracking:
@@ -47,6 +66,7 @@ class Tracking:
                 assert backend in self.supported_backend, f"{backend} is not supported"
 
         self.logger = {}
+        self.wandb_metric_allowlist = _parse_metric_patterns(_os.environ.get("VERL_WANDB_METRIC_ALLOWLIST", ""))
 
         if "tracking" in default_backend or "wandb" in default_backend:
             import wandb
@@ -127,7 +147,12 @@ class Tracking:
     def log(self, data, step, backend=None):
         for default_backend, logger_instance in self.logger.items():
             if backend is None or default_backend in backend:
-                logger_instance.log(data=data, step=step)
+                data_to_log = data
+                if default_backend in {"wandb", "vemlp_wandb"}:
+                    data_to_log = _filter_metrics(data, self.wandb_metric_allowlist)
+                    if not data_to_log:
+                        continue
+                logger_instance.log(data=data_to_log, step=step)
 
     def __del__(self):
         if "wandb" in self.logger:
