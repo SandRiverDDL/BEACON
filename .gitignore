@@ -132,3 +132,6 @@ data/
 .tmp
 *ports
 
+# Local WebShop data/index wiring. Keep large assets outside this fork.
+agent_system/environments/env_package/webshop/webshop/data
+agent_system/environments/env_package/webshop/webshop/search_engine/indexes
