@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import os
+
 import ray
 import gym
 import numpy as np
@@ -177,12 +180,28 @@ class WebshopMultiProcessEnv(gym.Env):
         # else:
         #     self.goal_idxs = range(len(self.env.server.goals))
 
+        train_start_idx = int(self._env_kwargs.get("train_start_idx", 500))
+        val_end_idx = int(self._env_kwargs.get("val_end_idx", train_start_idx))
+        exclude_path = self._env_kwargs.get("exclude_goal_indices_path", None)
+
         if not self.is_train:
-            self.goal_idxs = range(500)
+            self.goal_idxs = list(range(min(val_end_idx, len(goals))))
         else:
-            self.goal_idxs = range(500, len(goals))
-            
-        print(self.goal_idxs)
+            goal_idxs = set(range(min(train_start_idx, len(goals)), len(goals)))
+            if exclude_path:
+                exclude_path = os.path.abspath(os.path.expanduser(exclude_path))
+                with open(exclude_path, "r", encoding="utf-8") as f:
+                    excluded_goal_idxs = {int(idx) for idx in json.load(f)}
+                goal_idxs -= excluded_goal_idxs
+            self.goal_idxs = sorted(goal_idxs)
+
+        if len(self.goal_idxs) < self.env_num:
+            raise ValueError(
+                f"Not enough WebShop goals for env_num={self.env_num}: "
+                f"only {len(self.goal_idxs)} candidates after split/exclude filtering"
+            )
+
+        print(f"WebShop {'train' if self.is_train else 'val'} goal count: {len(self.goal_idxs)}")
 
     # ------------------------------------------------------------------
     # Base API ----------------------------------------------------------

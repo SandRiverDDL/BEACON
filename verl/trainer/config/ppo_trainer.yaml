@@ -36,6 +36,7 @@ actor_rollout_ref:
     lora_rank: 0  # Set to positive value to enable LoRA (e.g., 32)
     lora_alpha: 16  # LoRA scaling factor
     target_modules: all-linear  # all-linear or [q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj]
+    lora_adapter_path: null  # Optional existing PEFT adapter; keep path as base model and load adapter from this path
     use_liger: False
     use_fused_kernels: False
     trust_remote_code: False
@@ -313,5 +314,8 @@ env:
   webshop:
     use_small: True
     human_goals: False
+    train_start_idx: 500
+    val_end_idx: 500
+    exclude_goal_indices_path: null
   sciworld:
     simplifications_preset: easy

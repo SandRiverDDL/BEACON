@@ -77,6 +77,21 @@ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 device_name = get_device_name()
 
 
+def _get_lora_adapter_path(model_config):
+    adapter_path = model_config.get("lora_adapter_path", None)
+    if adapter_path is None or adapter_path == "":
+        return None
+    return os.path.abspath(os.path.expanduser(str(adapter_path)))
+
+
+def _read_lora_adapter_config(adapter_path):
+    config_path = os.path.join(adapter_path, "adapter_config.json")
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"LoRA adapter config not found: {config_path}")
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
 def create_device_mesh(world_size, fsdp_size):
     if fsdp_size < 0 or fsdp_size >= world_size:
         device_mesh = init_device_mesh(device_name, mesh_shape=(world_size,), mesh_dim_names=["fsdp"])
@@ -126,7 +141,16 @@ class ActorRolloutRefWorker(Worker):
             self.ulysses_device_mesh = init_device_mesh(device_name, mesh_shape=(dp, self.ulysses_sequence_parallel_size), mesh_dim_names=["dp", "sp"])
 
         self.ulysses_sharding_manager = FSDPUlyssesShardingManager(self.ulysses_device_mesh)
-        self._lora_rank = self.config.model.get('lora_rank', 0)
+        self._lora_adapter_path = _get_lora_adapter_path(self.config.model)
+        self._lora_rank = int(self.config.model.get('lora_rank', 0) or 0)
+        if self._lora_adapter_path is not None:
+            adapter_config = _read_lora_adapter_config(self._lora_adapter_path)
+            adapter_rank = int(adapter_config.get("r", 0) or 0)
+            if adapter_rank <= 0:
+                raise ValueError(f"Invalid LoRA rank in {self._lora_adapter_path}/adapter_config.json: {adapter_rank}")
+            if self._lora_rank > 0 and self._lora_rank != adapter_rank:
+                raise ValueError(f"Configured lora_rank={self._lora_rank} does not match adapter rank={adapter_rank}")
+            self._lora_rank = adapter_rank
         self._is_lora = self._lora_rank > 0
 
         self.role = role
@@ -261,17 +285,21 @@ class ActorRolloutRefWorker(Worker):
             if enable_gradient_checkpointing:
                 actor_module.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
             if self._is_lora:
-                print("Applying LoRA to actor module")
                 actor_module.enable_input_require_grads()
-                # Convert config to regular Python types before creating PEFT model
-                lora_config = {
-                    'task_type': TaskType.CAUSAL_LM,
-                    'r': self.config.model.lora_rank,
-                    'lora_alpha': self.config.model.lora_alpha,
-                    'target_modules': convert_to_regular_types(self.config.model.target_modules),
-                    'bias': "none"
-                }
-                actor_module = get_peft_model(actor_module, LoraConfig(**lora_config))
+                if self._lora_adapter_path is not None:
+                    print(f"Loading trainable LoRA adapter from {self._lora_adapter_path}")
+                    actor_module = PeftModel.from_pretrained(actor_module, self._lora_adapter_path, is_trainable=True)
+                else:
+                    print("Applying new LoRA to actor module")
+                    # Convert config to regular Python types before creating PEFT model
+                    lora_config = {
+                        'task_type': TaskType.CAUSAL_LM,
+                        'r': self._lora_rank,
+                        'lora_alpha': self.config.model.lora_alpha,
+                        'target_modules': convert_to_regular_types(self.config.model.target_modules),
+                        'bias': "none"
+                    }
+                    actor_module = get_peft_model(actor_module, LoraConfig(**lora_config))
         torch.distributed.barrier()
 
         if self.rank == 0:
@@ -292,7 +320,7 @@ class ActorRolloutRefWorker(Worker):
 
         mixed_precision = MixedPrecision(param_dtype=param_dtype, reduce_dtype=reduce_dtype, buffer_dtype=buffer_dtype)
 
-        auto_wrap_policy = get_fsdp_wrap_policy(module=actor_module, config=fsdp_config.get("wrap_policy", None), is_lora=self.config.model.get('lora_rank', 0) > 0)
+        auto_wrap_policy = get_fsdp_wrap_policy(module=actor_module, config=fsdp_config.get("wrap_policy", None), is_lora=self._is_lora)
 
         if self._is_rollout and self.config.rollout.name == "hf":
             # TODO(zhangchi.usc1992, shengguangming) fix me. Current, auto_wrap_policy causes HFRollout to hang in Gemma
