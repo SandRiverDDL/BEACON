@@ -181,11 +181,12 @@ class WebshopMultiProcessEnv(gym.Env):
         #     self.goal_idxs = range(len(self.env.server.goals))
 
         train_start_idx = int(self._env_kwargs.get("train_start_idx", 500))
+        val_start_idx = int(self._env_kwargs.get("val_start_idx", 0))
         val_end_idx = int(self._env_kwargs.get("val_end_idx", train_start_idx))
         exclude_path = self._env_kwargs.get("exclude_goal_indices_path", None)
 
         if not self.is_train:
-            self.goal_idxs = list(range(min(val_end_idx, len(goals))))
+            self.goal_idxs = list(range(min(val_start_idx, len(goals)), min(val_end_idx, len(goals))))
         else:
             goal_idxs = set(range(min(train_start_idx, len(goals)), len(goals)))
             if exclude_path:

@@ -366,8 +366,12 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, lam=1.0, num_re
         migpo_gamma = kwargs.get('migpo_gamma', 0.99)
         migpo_threshold = kwargs.get('migpo_threshold', 0.85)
 
-        # MIGPO: Extract milestone field (WebShop uses milestone_achieved, SciWorld uses subgoal_completed)
-        milestone_achieved = data.non_tensor_batch.get('milestone_achieved') or data.non_tensor_batch.get('subgoal_completed', None)
+        # MIGPO: Extract milestone field (WebShop uses milestone_achieved, SciWorld uses subgoal_completed).
+        # numpy arrays cannot be used with Python's `or` because their truth value is ambiguous.
+        if 'milestone_achieved' in data.non_tensor_batch:
+            milestone_achieved = data.non_tensor_batch['milestone_achieved']
+        else:
+            milestone_achieved = data.non_tensor_batch.get('subgoal_completed', None)
 
         advantages, returns = compute_migpo_advantage(
             token_level_rewards=data.batch['token_level_rewards'],

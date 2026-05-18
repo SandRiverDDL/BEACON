@@ -288,6 +288,15 @@ class ActorRolloutRefWorker(Worker):
                 actor_module.enable_input_require_grads()
                 if self._lora_adapter_path is not None:
                     print(f"Loading trainable LoRA adapter from {self._lora_adapter_path}")
+                    # 当前 tensor_model_parallel_size=1，不需要 PEFT 的 TP adapter 分片。
+                    # peft>=0.19 会无条件导入 transformers tensor_parallel 新符号；
+                    # transformers 4.51 缺少这些符号，因此这里将该分片检查置为 no-op。
+                    try:
+                        import peft.utils.save_and_load as peft_save_and_load
+
+                        peft_save_and_load._maybe_shard_state_dict_for_tp = lambda model, state_dict, adapter_name: None
+                    except Exception:
+                        pass
                     actor_module = PeftModel.from_pretrained(actor_module, self._lora_adapter_path, is_trainable=True)
                 else:
                     print("Applying new LoRA to actor module")
@@ -780,12 +789,18 @@ class ActorRolloutRefWorker(Worker):
 
         if self._is_lora and isinstance(self.actor_module, PeftModel):
             lora_save_path = os.path.join(local_path, "lora_adapter")
+            separate_lora_root = os.environ.get("VERL_SEPARATE_LORA_ADAPTER_DIR")
             peft_config = {}
             if dist.get_rank() == 0:
                 os.makedirs(lora_save_path, exist_ok=True)
+                separate_lora_path = None
+                if separate_lora_root:
+                    separate_lora_path = os.path.join(separate_lora_root, f"global_step_{global_step}")
+                    os.makedirs(separate_lora_path, exist_ok=True)
                 peft_config = asdict(self.actor_module.peft_config.get('default', {}))
-                peft_config['task_type'] = peft_config['task_type'].value
-                peft_config['peft_type'] = peft_config['peft_type'].value
+                # PEFT 不同版本中 task_type/peft_type 可能是 Enum，也可能已经是字符串。
+                peft_config['task_type'] = getattr(peft_config['task_type'], "value", peft_config['task_type'])
+                peft_config['peft_type'] = getattr(peft_config['peft_type'], "value", peft_config['peft_type'])
                 peft_config['target_modules'] = list(peft_config['target_modules'])
             try:
                 if isinstance(self.actor_module_fsdp, FSDP):
@@ -795,6 +810,10 @@ class ActorRolloutRefWorker(Worker):
                         save_file(lora_params, os.path.join(lora_save_path, "adapter_model.safetensors"))
                         with open(os.path.join(lora_save_path, "adapter_config.json"), "w", encoding='utf-8') as f:
                             json.dump(peft_config, f, ensure_ascii=False, indent=4)
+                        if separate_lora_path:
+                            save_file(lora_params, os.path.join(separate_lora_path, "adapter_model.safetensors"))
+                            with open(os.path.join(separate_lora_path, "adapter_config.json"), "w", encoding='utf-8') as f:
+                                json.dump(peft_config, f, ensure_ascii=False, indent=4)
             except Exception as e:
                 if dist.get_rank() == 0:
                     print(f"[rank-{self.rank}]: Save LoRA Adapter Error ({e})")
@@ -802,6 +821,8 @@ class ActorRolloutRefWorker(Worker):
             dist.barrier()
             if dist.get_rank() == 0:
                 print(f"[rank-{self.rank}]: Saved LoRA adapter to: {lora_save_path}")
+                if separate_lora_path:
+                    print(f"[rank-{self.rank}]: Saved separate LoRA adapter to: {separate_lora_path}")
 
         if self._is_offload_param:
             offload_fsdp_model_to_cpu(self.actor_module_fsdp)

@@ -315,6 +315,7 @@ env:
     use_small: True
     human_goals: False
     train_start_idx: 500
+    val_start_idx: 0
     val_end_idx: 500
     exclude_goal_indices_path: null
   sciworld:

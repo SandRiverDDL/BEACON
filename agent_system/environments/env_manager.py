@@ -778,11 +778,12 @@ def make_envs(config):
             attr_path = os.path.join(os.path.dirname(__file__), 'env_package/webshop/webshop/data/items_ins_v2.json')
         env_kwargs = {
                     'observation_mode': 'text', 
-                    'num_products': None, 
+                    'num_products': 1000 if config.env.webshop.use_small else None, 
                     'human_goals': config.env.webshop.human_goals,
                     'file_path': file_path,
                     'attr_path': attr_path,
                     'train_start_idx': config.env.webshop.train_start_idx,
+                    'val_start_idx': config.env.webshop.val_start_idx,
                     'val_end_idx': config.env.webshop.val_end_idx,
                     'exclude_goal_indices_path': config.env.webshop.exclude_goal_indices_path
                     }
